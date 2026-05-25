@@ -35,6 +35,55 @@ const fetchUserTweets = async (
   }
 };
 
+async function handleUsers(users: string[]): Promise<NextResponse> {
+  const accumulator: Tweet[] = [];
+
+  for (const usr of users) {
+    const tweets = await fetchUserTweets(usr);
+    accumulator.push(...tweets);
+    await sleep(2000);
+  }
+
+  const toTime = (t: Tweet) =>
+    new Date(t.created_at.replace(" · ", " ")).getTime();
+
+  accumulator.sort((a, b) => toTime(b) - toTime(a));
+
+  return NextResponse.json({
+    code: 200,
+    msg: "success",
+    data: accumulator,
+  } as ApiResponse<Tweet>);
+}
+
+// --- GET handler (supports ?users=user1,user2) ---
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const usersParam = url.searchParams.get("users");
+
+    if (!usersParam) {
+      return NextResponse.json(
+        { error: "`users` query param required (comma-separated)" },
+        { status: 400 }
+      );
+    }
+
+    const users = usersParam.split(",").map((u) => u.trim()).filter(Boolean);
+    if (users.length === 0) {
+      return NextResponse.json(
+        { error: "`users` must contain at least one username" },
+        { status: 400 }
+      );
+    }
+
+    return handleUsers(users);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 // --- POST handler ---
 export async function POST(req: Request) {
   try {
@@ -48,38 +97,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const accumulator: Tweet[] = [];
-
-    // --- Sequential with small delay (safe) ---
-    for (const usr of users) {
-      const tweets = await fetchUserTweets(usr);
-      accumulator.push(...tweets);
-      await sleep(2000); // avoid spamming Nitter instances
-    }
-
-    // --- Optional: sort by created_at descending ---
-    const toTime = (t: Tweet) =>
-      new Date(t.created_at.replace(" · ", " ")).getTime();
-
-    accumulator.sort((a, b) => toTime(b) - toTime(a));
-
-
-    return NextResponse.json({
-      code: 200,
-      msg: "success",
-      data: accumulator
-    } as ApiResponse<Tweet>);
-
+    return handleUsers(users);
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      return NextResponse.json(
-        { error: err.message },
-        { status: 500 }
-      );
-    }
-    return NextResponse.json(
-      { error: "Unknown error" },
-      { status: 500 }
-    );
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
