@@ -1,4 +1,3 @@
-import NewsAPI from "@/app/components/News/NewsAPI";
 import { NewsTypes, Result } from "@/lib/types/newsTypes";
 import { NextResponse } from "next/server";
 
